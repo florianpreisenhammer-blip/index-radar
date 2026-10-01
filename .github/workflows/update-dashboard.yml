@@ -1,0 +1,87 @@
+name: Dashboard aktualisieren und deployen
+
+# Rechnet die Prognose neu und schiebt das Ergebnis zu Netlify.
+# Zweimal taeglich: morgens (faengt Meldungen der Nacht) und am spaeten Abend
+# (S&P veroeffentlicht Indexaenderungen in der Regel nach US-Boersenschluss).
+on:
+  schedule:
+    - cron: "0 6 * * 1-6"
+    - cron: "30 22 * * 1-5"
+  workflow_dispatch:          # Schaltflaeche "Run workflow" auf GitHub
+
+concurrency:
+  group: dashboard-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Abhaengigkeiten installieren
+        run: pip install -r requirements.txt
+
+      - name: Prognose rechnen und Export bauen
+        run: |
+          # Yahoo drosselt Rechenzentrums-IPs gelegentlich. Bis zu drei Anlaeufe
+          # mit Pause; die Plausibilitaetspruefung im Tool bricht ab, statt
+          # eine halbleere Seite zu exportieren (Exit-Code 2).
+          for attempt in 1 2 3; do
+            echo "::group::Anlauf $attempt"
+            if python -m index_radar --export dist; then
+              echo "::endgroup::"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "Anlauf $attempt fehlgeschlagen."
+            [ "$attempt" -lt 3 ] && sleep 180
+          done
+          echo "::error::Alle drei Anlaeufe fehlgeschlagen - es wird nicht deployed."
+          exit 1
+
+      - name: Export als Artefakt sichern
+        if: always() && hashFiles('dist/data.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-export
+          path: dist/
+          retention-days: 14
+
+      - name: Zu Netlify deployen
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
+            echo "::error::Secrets NETLIFY_AUTH_TOKEN und/oder NETLIFY_SITE_ID fehlen."
+            exit 1
+          fi
+          # Netlify nimmt ein ZIP direkt entgegen - kein Node, keine CLI noetig.
+          # Kein --fail: der Statuscode wird unten selbst geprueft, damit die
+          # Fehlermeldung von Netlify im Log landet statt nur ein Exit-Code.
+          response=$(curl --silent --show-error \
+            --write-out "\n%{http_code}" \
+            -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+            -H "Content-Type: application/zip" \
+            --data-binary "@dist.zip" \
+            "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys")
+          code=$(printf '%s' "$response" | tail -n1)
+          body=$(printf '%s' "$response" | sed '$d')
+          echo "HTTP $code"
+          if [ "$code" != "200" ] && [ "$code" != "201" ]; then
+            echo "::error::Netlify-Deploy fehlgeschlagen: $body"
+            exit 1
+          fi
+          url=$(printf '%s' "$body" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ssl_url') or d.get('url',''))")
+          echo "Deployed: $url"
+          echo "### Dashboard aktualisiert" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
+          python3 -c "import json; d=json.load(open('dist/data.json')); print('Datenstand:', d['generated_at'])" >> "$GITHUB_STEP_SUMMARY"

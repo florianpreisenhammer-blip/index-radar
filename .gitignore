@@ -1,0 +1,6 @@
+data/latest.json
+data/fundamentals_cache.sqlite
+__pycache__/
+*.pyc
+dist/
+dist.zip

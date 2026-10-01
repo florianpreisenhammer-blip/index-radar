@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Index-Radar - S&P-Aufnahmeprognose</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --panel-2:#f0f2f5; --ink:#12161c; --ink-2:#5b6572;
+  --line:#dfe3e9; --accent:#0f6f6b; --accent-soft:#d8ecea; --warn:#a35b00;
+  --warn-soft:#fbeedb; --bad:#a32020; --bad-soft:#fae1e1; --good:#1d6b32;
+  --shadow:0 1px 2px rgba(16,22,30,.06),0 8px 24px rgba(16,22,30,.06);
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel-2:#1c232c; --ink:#e7ecf2; --ink-2:#9aa5b2;
+    --line:#262e38; --accent:#4fd1c5; --accent-soft:#12312f; --warn:#e0a458;
+    --warn-soft:#33260f; --bad:#f08a8a; --bad-soft:#3a1d1d; --good:#7ed39a;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
+a{color:var(--accent)}
+.wrap{max-width:1280px;margin:0 auto;padding:24px 20px 80px}
+
+header.top{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;
+  padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:22px}
+h1{font-size:26px;margin:0 0 4px;letter-spacing:-.02em}
+.sub{color:var(--ink-2);font-size:13.5px;margin:0}
+.actions{display:flex;gap:10px;align-items:center}
+button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+  padding:8px 14px;border-radius:9px;cursor:pointer;transition:.15s}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover{opacity:.9;color:#fff}
+button:disabled{opacity:.55;cursor:default}
+
+.status{font-size:12.5px;color:var(--ink-2);display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--good);flex:none}
+.dot.busy{background:var(--warn);animation:pulse 1.1s infinite}
+@keyframes pulse{50%{opacity:.25}}
+
+.banner{background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;
+  padding:14px 16px;margin-bottom:22px}
+.banner h2{margin:0 0 8px;font-size:15px;letter-spacing:.01em}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;
+  padding:4px 11px;font-size:12.5px;white-space:nowrap}
+.chip b{font-variant-numeric:tabular-nums}
+.chip.out{opacity:.72}
+
+nav.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+nav.tabs button{border-radius:999px;padding:7px 16px;font-size:14px}
+nav.tabs button[aria-selected=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;margin-bottom:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px;
+  box-shadow:var(--shadow)}
+.card .k{font-size:12px;color:var(--ink-2);margin-bottom:5px}
+.card .v{font-size:21px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.card .n{font-size:11.5px;color:var(--ink-2);margin-top:3px}
+
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+input[type=search],select{font:inherit;padding:7px 11px;border-radius:9px;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink)}
+label.check{display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--ink-2)}
+
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:13.5px}
+th{background:var(--panel-2);font-weight:600;font-size:12px;text-transform:uppercase;
+  letter-spacing:.04em;color:var(--ink-2);position:sticky;top:0;z-index:1}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--panel-2)}
+tbody tr.open{background:var(--panel-2)}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+.tk{font-weight:600;letter-spacing:.02em}
+.nm{color:var(--ink-2);font-size:12.5px}
+
+.bar{position:relative;height:18px;background:var(--panel-2);border-radius:5px;min-width:110px;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--accent);opacity:.75;border-radius:5px}
+.bar span{position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-end;
+  padding-right:6px;font-size:11.5px;font-variant-numeric:tabular-nums;font-weight:600}
+
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;border:1px solid var(--line)}
+.pill.sp500{background:var(--accent-soft);border-color:var(--accent)}
+.pill.sp400{background:var(--warn-soft);border-color:var(--warn)}
+.pill.sp600{background:var(--panel-2)}
+
+.detail{background:var(--panel-2)}
+.detail td{padding:0}
+.detail .inner{padding:16px 18px;display:grid;grid-template-columns:1fr 1fr;gap:22px}
+@media(max-width:820px){.detail .inner{grid-template-columns:1fr}}
+.detail h4{margin:0 0 9px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2)}
+ul.gates{list-style:none;margin:0;padding:0}
+ul.gates li{display:flex;gap:9px;padding:5px 0;font-size:13px;border-bottom:1px dotted var(--line)}
+ul.gates li:last-child{border:0}
+.mark{flex:none;width:17px;height:17px;border-radius:5px;display:grid;place-items:center;
+  font-size:11px;font-weight:700;margin-top:1px}
+.mark.pass{background:var(--accent-soft);color:var(--good)}
+.mark.fail{background:var(--bad-soft);color:var(--bad)}
+.mark.warn{background:var(--warn-soft);color:var(--warn)}
+.mark.unknown{background:var(--panel);color:var(--ink-2);border:1px solid var(--line)}
+.gates .lbl{font-weight:500}
+.gates .det{color:var(--ink-2);font-size:12.5px}
+.factors{display:grid;gap:6px}
+.frow{display:grid;grid-template-columns:1fr 62px;gap:8px;align-items:center;font-size:13px}
+.frow .fb{height:6px;background:var(--panel);border-radius:3px;position:relative;overflow:hidden;
+  border:1px solid var(--line)}
+.frow .fb i{position:absolute;top:0;bottom:0;background:var(--accent);opacity:.8}
+.frow .fb i.neg{background:var(--bad)}
+.frow .fv{text-align:right;font-variant-numeric:tabular-nums;font-size:12px;color:var(--ink-2)}
+.fdet{color:var(--ink-2);font-size:12px;margin-top:-2px}
+
+section.block{margin-top:34px}
+section.block h3{font-size:16px;margin:0 0 10px}
+.muted{color:var(--ink-2);font-size:13px}
+details.meth{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+details.meth summary{cursor:pointer;font-weight:600}
+details.meth h4{margin:16px 0 6px;font-size:13.5px}
+details.meth p,details.meth li{font-size:13.5px;color:var(--ink-2)}
+code{background:var(--panel-2);padding:1px 5px;border-radius:5px;font-size:12.5px}
+footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);
+  color:var(--ink-2);font-size:12.5px}
+.empty{padding:26px;text-align:center;color:var(--ink-2)}
+.err{background:var(--bad-soft);border:1px solid var(--bad);color:var(--bad);
+  padding:12px 14px;border-radius:10px;margin-bottom:18px;font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Index-Radar</h1>
+      <p class="sub">Wahrscheinlichkeiten fuer die Aufnahme in S&amp;P 500, S&amp;P 100,
+        S&amp;P MidCap 400 und S&amp;P SmallCap 600 &mdash; bei jedem Start neu berechnet.</p>
+    </div>
+    <div class="actions">
+      <div class="status"><span class="dot" id="dot"></span><span id="status">lade &hellip;</span></div>
+      <button id="reload">Neu berechnen</button>
+      <button id="reloadFresh" title="Ignoriert auch den Fundamentaldaten-Cache">Alles neu laden</button>
+    </div>
+  </header>
+
+  <div id="error" class="err" hidden></div>
+  <div id="pending" class="banner" hidden></div>
+
+  <nav class="tabs" id="tabs"></nav>
+  <div id="view"></div>
+
+  <section class="block">
+    <details class="meth">
+      <summary>Methodik &ndash; wie die Prozentwerte entstehen</summary>
+      <div id="methodology"></div>
+    </details>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+const fmtPct = v => (100*v).toFixed(1).replace('.', ',') + ' %';
+const fmtCap = v => !v ? '-' : (v >= 1e12 ? (v/1e12).toFixed(2).replace('.',',')+' Bio. $'
+                   : (v/1e9).toFixed(1).replace('.',',')+' Mrd. $');
+const fmtNum = v => (v ?? 0).toLocaleString('de-DE');
+const fmtDate = s => { if(!s) return '-'; const d=new Date(s);
+  return isNaN(d) ? s : d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}); };
+const fmtTime = s => { const d=new Date(s); return isNaN(d) ? s
+  : d.toLocaleString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); };
+const ORIGIN = {sp500:'S&P 500', sp400:'MidCap 400', sp600:'SmallCap 600', extern:'ausserhalb'};
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let DATA = null, active = 'sp500', STATIC = false;
+const filters = {q:'', onlyEligible:true, origin:'alle'};
+
+// Die Seite laeuft in zwei Betriebsarten:
+//   live    - der lokale Python-Server liefert /api/* und kann neu rechnen
+//   statisch- ein exportierter Schnappschuss (z. B. auf Netlify) liest data.json
+async function detectMode(){
+  try{
+    const r = await fetch('/api/status', {cache:'no-store'});
+    if(!r.ok) throw new Error('kein Server');
+    return false;
+  }catch(e){ return true; }
+}
+
+async function poll(){
+  if(STATIC) return;
+  try{
+    const s = await (await fetch('/api/status')).json();
+    const busy = s.running;
+    document.getElementById('dot').className = 'dot' + (busy ? ' busy' : '');
+    document.getElementById('status').textContent = busy
+      ? (s.step || 'berechnet …')
+      : (s.generated_at ? 'Stand ' + fmtTime(s.generated_at) : 'keine Daten');
+    document.getElementById('reload').disabled = busy;
+    document.getElementById('reloadFresh').disabled = busy;
+    const err = document.getElementById('error');
+    err.hidden = !s.error; err.textContent = s.error || '';
+    if(!busy && s.generated_at && (!DATA || DATA.generated_at !== s.generated_at)) await loadData();
+  }catch(e){ /* Server startet noch */ }
+  setTimeout(poll, 1500);
+}
+
+async function loadData(){
+  const r = await fetch(STATIC ? './data.json' : '/api/data', {cache:'no-store'});
+  if(!r.ok) return;
+  DATA = await r.json();
+  render();
+}
+
+function applyStaticMode(){
+  document.querySelectorAll('.actions button').forEach(b => b.remove());
+  document.getElementById('dot').classList.remove('busy');
+  const s = document.getElementById('status');
+  s.textContent = DATA ? 'Datenstand ' + fmtTime(DATA.generated_at) : 'keine Daten';
+  const sub = document.querySelector('header.top .sub');
+  sub.innerHTML = 'Wahrscheinlichkeiten fuer die Aufnahme in S&amp;P 500, S&amp;P 100, '
+    + 'S&amp;P MidCap 400 und S&amp;P SmallCap 600.<br>'
+    + '<b>Statischer Export</b> &ndash; die Zahlen sind auf dem unten genannten Stichtag '
+    + 'eingefroren; die laufende Neuberechnung gibt es in der lokalen Version.';
+}
+
+function render(){
+  if(!DATA) return;
+  renderPending();
+  renderTabs();
+  renderIndex();
+  renderMethodology();
+  renderFooter();
+}
+
+function renderPending(){
+  const el = document.getElementById('pending');
+  const adds = (DATA.pending_changes||[]).filter(c => c.action === 'addition');
+  const dels = (DATA.pending_changes||[]).filter(c => c.action === 'deletion');
+  if(!adds.length && !dels.length){ el.hidden = true; return; }
+  el.hidden = false;
+  const eff = [...new Set(adds.concat(dels).map(c => c.effective_date))].sort();
+  const ranks = {};
+  DATA.indices.forEach(i => (i.announced_additions||[]).forEach(a => {
+    ranks[a.ticker + '|' + i.index] = a;
+  }));
+  const val = DATA.indices.reduce((acc, i) => {
+    const v = i.validation || {};
+    acc.checked += v.checked || 0; acc.top10 += v.in_top10 || 0; acc.top25 += v.in_top25 || 0;
+    acc.missed += (v.missed || []).length;
+    return acc;
+  }, {checked:0, top10:0, top25:0, missed:0});
+
+  el.innerHTML = `<h2>Bereits offiziell angekuendigt &mdash; keine Prognose mehr noetig
+      (wirksam ${eff.map(fmtDate).join(', ')})</h2>
+    <div class="chips">
+      ${adds.slice().sort((a,b) => a.index.localeCompare(b.index)).map(c => {
+        const a = ranks[c.ticker + '|' + c.index];
+        const r = a && a.model_rank ? ` <span class="muted">(Modell: Rang ${a.model_rank},
+          ${fmtPct(a.model_probability)})</span>` : '';
+        return `<span class="chip"><b>${esc(c.ticker)}</b> ${esc(c.company)}
+          &rarr; ${esc(labelOf(c.index))}${r}</span>`;
+      }).join('')}
+    </div>
+    ${dels.length ? `<details style="margin-top:10px"><summary class="muted">
+      ${dels.length} angekuendigte Streichungen anzeigen</summary>
+      <div class="chips" style="margin-top:8px">
+      ${dels.map(c => `<span class="chip out"><b>${esc(c.ticker)}</b> ${esc(c.company)}
+        verlaesst ${esc(labelOf(c.index))}</span>`).join('')}</div></details>` : ''}
+    <p class="muted" style="margin:10px 0 0">Quelle: Pressemitteilungen von S&amp;P Dow Jones Indices.
+      Diese Titel sind aus den Kandidatenlisten unten entfernt.
+      ${val.checked ? `<b>Selbstkontrolle:</b> von ${val.checked} angekuendigten Aufnahmen
+        standen ${val.top10} in den Top 10 und ${val.top25} in den Top 25 der jeweiligen
+        Modellrangliste${val.missed ? `, ${val.missed} haette das Modell nicht bewertet` : ''}.` : ''}</p>`;
+}
+
+const labelOf = k => (DATA.indices.find(i => i.index === k) || {}).label || k;
+
+function renderTabs(){
+  const nav = document.getElementById('tabs');
+  nav.innerHTML = DATA.indices.map(i =>
+    `<button role="tab" aria-selected="${i.index===active}" data-k="${i.index}">${esc(i.label)}</button>`
+  ).join('');
+  nav.querySelectorAll('button').forEach(b => b.onclick = () => {
+    active = b.dataset.k; renderTabs(); renderIndex();
+  });
+}
+
+function renderIndex(){
+  const idx = DATA.indices.find(i => i.index === active);
+  const view = document.getElementById('view');
+  if(!idx){ view.innerHTML = ''; return; }
+
+  const cands = idx.candidates.filter(c => {
+    if(filters.onlyEligible && !c.eligible) return false;
+    if(filters.origin !== 'alle' && c.current_index !== filters.origin) return false;
+    if(filters.q){
+      const q = filters.q.toLowerCase();
+      if(!c.ticker.toLowerCase().includes(q) && !c.name.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const cal = idx.calibration;
+  view.innerHTML = `
+    <div class="cards">
+      <div class="card"><div class="k">Mitglieder heute</div><div class="v">${fmtNum(idx.members)}</div>
+        <div class="n">${esc(idx.notes)}</div></div>
+      <div class="card"><div class="k">Erwartete Aufnahmen (12 Monate)</div>
+        <div class="v">${idx.expected_additions.toFixed(1).replace('.',',')}</div>
+        <div class="n">${cal.adds_per_year.toFixed(1).replace('.',',')} pro Jahr, gemessen ueber
+          ${cal.window_years.toFixed(1).replace('.',',')} Jahre (n=${cal.n_adds})</div></div>
+      <div class="card"><div class="k">Bereits angekuendigt</div>
+        <div class="v">${idx.announced_additions.length}</div>
+        <div class="n">${idx.announced_additions.map(a=>esc(a.ticker)).join(', ') || 'keine'}</div></div>
+      <div class="card"><div class="k">Kandidaten geprueft</div><div class="v">${fmtNum(idx.pool_size)}</div>
+        <div class="n">${fmtNum(idx.eligible_count)} erfuellen alle harten Kriterien${
+          idx.untested_pool ? `, ${fmtNum(idx.untested_pool)} weitere im Restpool` : ''}</div></div>
+      <div class="card"><div class="k">Selbstkontrolle</div>
+        <div class="v" style="font-size:17px">${idx.validation && idx.validation.ranks.length
+          ? 'Rang ' + idx.validation.ranks.slice().sort((a,b)=>a-b).join(', ') : '-'}</div>
+        <div class="n">${idx.validation && idx.validation.ranks.length
+          ? `Position der zuletzt von S&amp;P angekuendigten Aufnahmen in dieser Rangliste,
+             bevor sie bekannt wurden`
+          : 'derzeit keine angekuendigten Aufnahmen zum Abgleich'}</div></div>
+      <div class="card"><div class="k">Groessenband</div>
+        <div class="v" style="font-size:16px">${idx.min_cap ? fmtCap(idx.min_cap) : 'kein Band'}${
+          idx.max_cap ? ' &ndash; ' + fmtCap(idx.max_cap) : (idx.min_cap ? ' aufwaerts' : '')}</div>
+        <div class="n">Richtwert von S&amp;P, Stand ${esc(DATA.thresholds.asof)}</div></div>
+    </div>
+
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="Ticker oder Name suchen" value="${esc(filters.q)}">
+      <select id="origin">
+        <option value="alle">Herkunft: alle</option>
+        <option value="sp500">aus dem S&P 500</option>
+        <option value="sp400">aus dem MidCap 400</option>
+        <option value="sp600">aus dem SmallCap 600</option>
+        <option value="extern">ausserhalb des S&P 1500</option>
+      </select>
+      <label class="check"><input type="checkbox" id="onlyEl" ${filters.onlyEligible?'checked':''}>
+        nur Titel, die alle harten Kriterien erfuellen</label>
+      <span class="muted">${fmtNum(cands.length)} Treffer</span>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th style="width:44px">#</th><th>Titel</th><th>Sektor</th>
+        <th class="num">Marktkap.</th><th>Herkunft</th>
+        <th style="width:150px">Aufnahme in 12 Monaten</th>
+        <th class="num" style="width:96px">naechstes Quartal</th>
+      </tr></thead>
+      <tbody id="rows">
+        ${cands.length ? cands.map(rowHtml).join('')
+          : '<tr><td colspan="7" class="empty">Keine Treffer.</td></tr>'}
+      </tbody>
+    </table>
+
+    ${idx.at_risk && idx.at_risk.length ? `
+      <section class="block">
+        <h3>Wackelkandidaten im Index</h3>
+        <p class="muted">Mitglieder, deren Marktkapitalisierung das Indexband verlassen hat.
+          Jede Streichung schafft einen freien Platz &ndash; das ist der haeufigste Ausloeser
+          fuer eine Neuaufnahme.</p>
+        <table><thead><tr><th>Titel</th><th class="num">Marktkap.</th><th>Befund</th></tr></thead>
+          <tbody>${idx.at_risk.map(r => `<tr><td><span class="tk">${esc(r.ticker)}</span>
+            <span class="nm">${esc(r.name)}</span></td>
+            <td class="num">${fmtCap(r.market_cap)}</td>
+            <td>${esc(r.reason)}${r.announced_exit
+              ? ` &mdash; Austritt angekuendigt zum ${fmtDate(r.announced_exit)}` : ''}</td></tr>`).join('')}
+          </tbody></table>
+      </section>` : ''}
+  `;
+
+  document.getElementById('origin').value = filters.origin;
+  document.getElementById('q').oninput = e => { filters.q = e.target.value; renderIndex();
+    document.getElementById('q').focus(); };
+  document.getElementById('origin').onchange = e => { filters.origin = e.target.value; renderIndex(); };
+  document.getElementById('onlyEl').onchange = e => { filters.onlyEligible = e.target.checked; renderIndex(); };
+  document.querySelectorAll('#rows tr[data-tk]').forEach(tr => tr.onclick = () => toggleDetail(tr, idx));
+}
+
+function rowHtml(c){
+  const pillCls = c.current_index === 'extern' ? '' : c.current_index;
+  return `<tr data-tk="${esc(c.ticker)}">
+    <td class="num">${c.rank}</td>
+    <td><span class="tk">${esc(c.ticker)}</span><br><span class="nm">${esc(c.name)}</span></td>
+    <td class="nm">${esc(c.sector || '-')}</td>
+    <td class="num">${fmtCap(c.market_cap)}</td>
+    <td><span class="pill ${pillCls}">${esc(ORIGIN[c.current_index] || '-')}</span></td>
+    <td><div class="bar"><i style="width:${Math.max(2, Math.min(100, c.probability*100)).toFixed(1)}%"></i>
+      <span>${fmtPct(c.probability)}</span></div></td>
+    <td class="num">${fmtPct(c.probability_quarter)}</td>
+  </tr>`;
+}
+
+function toggleDetail(tr, idx){
+  const next = tr.nextElementSibling;
+  if(next && next.classList.contains('detail')){ next.remove(); tr.classList.remove('open'); return; }
+  document.querySelectorAll('tr.detail').forEach(d => d.remove());
+  document.querySelectorAll('tr.open').forEach(d => d.classList.remove('open'));
+  const c = idx.candidates.find(x => x.ticker === tr.dataset.tk);
+  if(!c) return;
+  tr.classList.add('open');
+  const row = document.createElement('tr');
+  row.className = 'detail';
+  row.innerHTML = `<td colspan="7"><div class="inner">
+    <div>
+      <h4>Harte Aufnahmekriterien</h4>
+      <ul class="gates">${c.gates.map(g => `<li>
+        <span class="mark ${g.state}">${({pass:'✓',fail:'✕',warn:'!',unknown:'?'})[g.state]}</span>
+        <span><span class="lbl">${esc(g.label)}</span><br><span class="det">${esc(g.detail)}</span></span>
+      </li>`).join('')}</ul>
+      ${c.blockers.length ? `<p class="muted" style="margin-top:10px"><b>Aufnahme derzeit ausgeschlossen:</b>
+        ${c.blockers.map(esc).join('; ')}</p>` : ''}
+    </div>
+    <div>
+      <h4>Bewertungsfaktoren</h4>
+      ${c.factors.length ? `<div class="factors">${c.factors.map(f => {
+        const v = f.value, w = Math.min(100, Math.abs(Math.log(v)) / Math.log(3) * 100);
+        return `<div>
+          <div class="frow"><span>${esc(f.label)}</span><span class="fv">&times;${v.toFixed(2).replace('.',',')}</span></div>
+          <div class="fb"><i class="${v<1?'neg':''}" style="left:${v<1?(50-w/2):50}%;width:${w/2}%"></i></div>
+          <div class="fdet">${esc(f.detail)}</div></div>`;
+      }).join('')}</div>
+      <p class="muted" style="margin-top:12px">Gesamtgewicht ${c.raw_score.toFixed(2).replace('.',',')}
+        &rarr; Anteil am naechsten freien Platz ${fmtPct(c.share_of_next_slot)}.</p>`
+      : '<p class="muted">Nicht bewertet, weil ein hartes Kriterium verletzt ist.</p>'}
+    </div>
+  </div></td>`;
+  tr.after(row);
+}
+
+function renderMethodology(){
+  const t = DATA.thresholds;
+  document.getElementById('methodology').innerHTML = `
+    <h4>1. Wer ist ueberhaupt Kandidat?</h4>
+    <p>Startpunkt ist das gesamte US-Aktienuniversum (${fmtNum(DATA.universe_size)} Titel,
+      Quelle ${esc(DATA.universe_source || 'Yahoo Finance')}) &ndash; nicht eine gepflegte Auswahlliste.
+      Titel, die schon Mitglied sind oder deren Aufnahme S&amp;P bereits angekuendigt hat,
+      fliegen raus. Deshalb kann hier weder ein bereits aufgenommener Titel als "Kandidat"
+      erscheinen, noch eine Neuaufnahme uebersehen werden.</p>
+
+    <h4>2. Harte Kriterien (S&amp;P U.S. Indices Methodology)</h4>
+    <ul>
+      <li>US-Domizil, Notierung an einer zugelassenen US-Boerse, Stammaktie</li>
+      <li>Mindestens ${Math.round(t.min_seasoning_days/30)} Monate seit dem Boersengang</li>
+      <li>Streubesitz mindestens ${fmtPct(t.min_iwf)}</li>
+      <li>Liquiditaetsquote (Jahresumsatz / Streubesitz-Marktkapitalisierung) mindestens
+        ${t.min_liquidity.toFixed(2).replace('.',',')}</li>
+      <li>Positives GAAP-Ergebnis im letzten Quartal <b>und</b> in der Summe der vier Vorquartale</li>
+      <li>Groessenband: S&amp;P 500 ab ${fmtCap(t.sp500_min)}, MidCap 400 ${fmtCap(t.sp400_min)}
+        bis ${fmtCap(t.sp400_max)}, SmallCap 600 ${fmtCap(t.sp600_min)} bis ${fmtCap(t.sp600_max)}
+        (Stand ${esc(t.asof)}; S&amp;P passt die Werte quartalsweise an)</li>
+    </ul>
+    <p>Die Groesse ist bewusst ein <i>weiches</i> Kriterium: S&amp;P behaelt sich Ermessen vor und
+      nimmt regelmaessig Titel knapp unterhalb des Richtwerts auf. Wer knapp darunter liegt,
+      bleibt darum im Rennen &ndash; mit deutlich kleinerer Chance.</p>
+
+    <h4>3. Von den Kriterien zur Wahrscheinlichkeit</h4>
+    <p>Jeder qualifizierte Kandidat bekommt ein Gewicht aus neun Faktoren (Groesse im Band,
+      Herkunftsindex, Groessenvorteil gegenueber den kleinsten Mitgliedern, Liquiditaet,
+      Streubesitz, Gewinnqualitaet, Sektorbalance, Boersenhistorie, Datenlage).
+      Die Gewichte werden anschliessend so normiert, dass ihre Summe genau der empirisch
+      gemessenen Zahl der Aufnahmen entspricht:</p>
+    <p><code>p = 1 - exp(-E &times; w / &Sigma;w)</code>, mit <code>E</code> = erwartete Aufnahmen
+      im Horizont, gemessen aus der echten Aenderungshistorie der letzten Jahre.</p>
+    <p>Ein Wert von 20 % heisst also konkret: von fuenf vergleichbaren Ausgangslagen fuehrt
+      statistisch eine innerhalb von zwoelf Monaten zur Aufnahme. Die Summe aller angezeigten
+      Wahrscheinlichkeiten eines Index ergibt ungefaehr die Zahl der Plaetze, die
+      erfahrungsgemaess in diesem Zeitraum frei werden.</p>
+
+    <h4>4. Was empirisch gemessen statt geschaetzt wird</h4>
+    <ul>${DATA.indices.map(i => `<li><b>${esc(i.label)}</b>:
+      ${i.calibration.adds_per_year.toFixed(1).replace('.',',')} Aufnahmen pro Jahr
+      (${esc(i.calibration.source)}). Herkunft der Neuzugaenge:
+      ${Object.entries(i.calibration.feeder_shares).sort((a,b)=>b[1]-a[1])
+        .map(([k,v]) => `${fmtPct(v)} ${esc(ORIGIN[k]||k)}`).join(', ') || 'keine Daten'}.</li>`).join('')}
+    </ul>
+
+    <h4>5. Grenzen</h4>
+    <ul>
+      <li>Der haeufigste Ausloeser einer Aufnahme ist eine Uebernahme, die einen Platz frei macht.
+        Wann das passiert, weiss niemand vorher &ndash; das Modell schaetzt nur, <i>wer</i> den
+        Platz bekommt, nicht <i>wann</i> er frei wird.</li>
+      <li>S&amp;P entscheidet im Indexkomitee und begruendet Entscheidungen nicht.
+        Ermessen laesst sich nicht modellieren.</li>
+      <li>Streubesitz, Domizil und Gewinne stammen von Yahoo Finance. Bei Sonderfaellen
+        (auslaendische Rechtsform mit US-Adresse, Mehrfach-Aktiengattungen) kann das abweichen &ndash;
+        solche Faelle sind in der Detailansicht als Warnung markiert.</li>
+      <li>Keine Anlageberatung.</li>
+    </ul>`;
+}
+
+function renderFooter(){
+  const s = DATA.fundamentals_stats || {};
+  document.getElementById('footer').innerHTML = `
+    Berechnet am ${fmtTime(DATA.generated_at)} in ${DATA.runtime_seconds.toFixed(0)} Sekunden &middot;
+    ${fmtNum(DATA.universe_size)} Titel im Universum &middot;
+    ${fmtNum(DATA.fundamentals_loaded)} Fundamentaldatensaetze
+    (${fmtNum(s.fetched||0)} frisch geladen, ${fmtNum(s.from_cache||0)} aus dem Cache
+    mit max. ${DATA.fundamentals_ttl_hours} h Alter${s.rate_limited ? `, ${fmtNum(s.rate_limited)} von Yahoo gedrosselt` : ''})
+    <br>Quellen: ${(DATA.sources||[]).map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)}</a> (${esc(x.use)})`).join(' &middot; ')}`;
+}
+
+document.getElementById('reload').onclick = async () => {
+  await fetch('/api/recompute', {method:'POST'});
+};
+document.getElementById('reloadFresh').onclick = async () => {
+  await fetch('/api/recompute?fresh=1', {method:'POST'});
+};
+(async () => {
+  STATIC = await detectMode();
+  await loadData();
+  if(STATIC) applyStaticMode(); else poll();
+})();
+</script>
+</body>
+</html>
