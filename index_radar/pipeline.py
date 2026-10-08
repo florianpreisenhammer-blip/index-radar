@@ -12,13 +12,14 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from . import calibration as calib
+from . import config as cfg
 from .config import (DEPTH_PER_INDEX, FUNDAMENTALS_TTL_SECONDS, HORIZON_DAYS, INDEX_ORDER,
                      INDEX_SPECS, MIN_IWF, MIN_LIQUIDITY_RATIO, MIN_SEASONING_DAYS,
                      SOFT_CAP_CEILING, SOFT_CAP_FLOOR, SP400_MAX_CAP, SP400_MIN_CAP,
                      SP500_MIN_CAP, SP600_MAX_CAP, SP600_MIN_CAP, THRESHOLDS_ASOF,
                      UNIVERSE_MIN_CAP)
 from .scoring import score_index
-from .sources import announcements, constituents, history, market
+from .sources import announcements, constituents, history, market, thresholds
 from .util import log, now_iso
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -118,6 +119,15 @@ def run(horizon_days: int = HORIZON_DAYS, progress=None, fresh: bool = False) ->
         steps.append({"name": name, "seconds": round(time.time() - t0, 1)})
         return result
 
+    # Zuerst die Groessengrenzen: sie bestimmen, wer ueberhaupt Kandidat ist.
+    th = step("Groessengrenzen (S&P-Meldung)",
+              lambda: thresholds.fetch(use_cache=not fresh))
+    if th is not None:
+        cfg.apply_thresholds(th)
+    else:
+        log.warning("Groessengrenzen nicht abrufbar - es gelten die hinterlegten "
+                    "Rueckfallwerte (Stand %s)", cfg.THRESHOLDS_ASOF)
+
     members = step("Indexmitglieder (Wikipedia)", constituents.fetch_all_members)
     changes = step("S&P-Pressemeldungen", lambda: announcements.fetch_changes())
     hist = step("Aenderungshistorie", history.fetch_all_history)
@@ -216,10 +226,13 @@ def run(horizon_days: int = HORIZON_DAYS, progress=None, fresh: bool = False) ->
         "fundamentals_stats": fund_stats,
         "fundamentals_ttl_hours": 0 if fresh else FUNDAMENTALS_TTL_SECONDS / 3600,
         "thresholds": {
-            "asof": THRESHOLDS_ASOF,
-            "sp500_min": SP500_MIN_CAP, "sp400_min": SP400_MIN_CAP,
-            "sp400_max": SP400_MAX_CAP, "sp600_min": SP600_MIN_CAP,
-            "sp600_max": SP600_MAX_CAP, "min_iwf": MIN_IWF,
+            "asof": cfg.THRESHOLDS_ASOF,
+            "source": cfg.THRESHOLDS_SOURCE,
+            "source_url": cfg.THRESHOLDS_URL,
+            "live": th is not None,
+            "sp500_min": cfg.SP500_MIN_CAP, "sp400_min": cfg.SP400_MIN_CAP,
+            "sp400_max": cfg.SP400_MAX_CAP, "sp600_min": cfg.SP600_MIN_CAP,
+            "sp600_max": cfg.SP600_MAX_CAP, "min_iwf": MIN_IWF,
             "min_liquidity": MIN_LIQUIDITY_RATIO, "min_seasoning_days": MIN_SEASONING_DAYS,
         },
         "pending_changes": [c.to_dict() for c in pending],

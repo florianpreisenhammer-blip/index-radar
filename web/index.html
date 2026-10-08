@@ -326,7 +326,11 @@ function renderIndex(){
       <div class="card"><div class="k">Groessenband</div>
         <div class="v" style="font-size:16px">${idx.min_cap ? fmtCap(idx.min_cap) : 'kein Band'}${
           idx.max_cap ? ' &ndash; ' + fmtCap(idx.max_cap) : (idx.min_cap ? ' aufwaerts' : '')}</div>
-        <div class="n">Richtwert von S&amp;P, Stand ${esc(DATA.thresholds.asof)}</div></div>
+        <div class="n">${DATA.thresholds.source_url
+            ? `Richtwert von S&amp;P, gueltig ab ${fmtDate(DATA.thresholds.asof)} &ndash;
+               <a href="${esc(DATA.thresholds.source_url)}" target="_blank" rel="noopener">Meldung</a>`
+            : `Rueckfallwert, Stand ${esc(DATA.thresholds.asof)} &ndash; S&amp;P-Meldung war
+               nicht abrufbar`}</div></div>
     </div>
 
     <div class="toolbar">
@@ -451,7 +455,10 @@ function renderMethodology(){
       <li>Positives GAAP-Ergebnis im letzten Quartal <b>und</b> in der Summe der vier Vorquartale</li>
       <li>Groessenband: S&amp;P 500 ab ${fmtCap(t.sp500_min)}, MidCap 400 ${fmtCap(t.sp400_min)}
         bis ${fmtCap(t.sp400_max)}, SmallCap 600 ${fmtCap(t.sp600_min)} bis ${fmtCap(t.sp600_max)}
-        (Stand ${esc(t.asof)}; S&amp;P passt die Werte quartalsweise an)</li>
+        &ndash; diese Werte werden bei jedem Lauf aus der juengsten S&amp;P-Meldung
+        gelesen${t.source_url ? ` (<a href="${esc(t.source_url)}" target="_blank" rel="noopener">gueltig ab ${fmtDate(t.asof)}</a>)`
+          : ` (derzeit Rueckfallwert, Stand ${esc(t.asof)})`}. S&amp;P prueft sie zu jedem
+        Quartalsbeginn und passt sie bei Bedarf an.</li>
     </ul>
     <p>Die Groesse ist bewusst ein <i>weiches</i> Kriterium: S&amp;P behaelt sich Ermessen vor und
       nimmt regelmaessig Titel knapp unterhalb des Richtwerts auf. Wer knapp darunter liegt,

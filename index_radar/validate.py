@@ -42,6 +42,19 @@ def check(snapshot: dict) -> list[str]:
         if idx["calibration"]["adds_per_year"] <= 0:
             problems.append(f"{spec.label}: keine Aufnahmerate ermittelt")
 
+    th = snapshot.get("thresholds") or {}
+    bands = [th.get("sp600_min"), th.get("sp600_max"), th.get("sp400_min"),
+             th.get("sp400_max"), th.get("sp500_min")]
+    if not all(isinstance(v, (int, float)) and v > 0 for v in bands):
+        problems.append("Groessengrenzen fehlen oder sind unbrauchbar")
+    else:
+        lo6, hi6, lo4, hi4, lo5 = bands
+        if not (lo6 < hi6 and lo4 < hi4):
+            problems.append("Groessenbaender sind in sich widerspruechlich")
+        if abs(hi6 - lo4) > 1e6 or abs(hi4 - lo5) > 1e6:
+            problems.append("Groessenbaender grenzen nicht aneinander - "
+                            "vermutlich falsch gelesen")
+
     if not snapshot.get("generated_at"):
         problems.append("Zeitstempel fehlt")
     return problems

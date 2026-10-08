@@ -75,3 +75,38 @@ def age_seconds(tickers: list[str]) -> float | None:
 def clear() -> None:
     with _conn() as c:
         c.execute("DELETE FROM fundamentals")
+
+
+# ---------------------------------------------------------------------------
+# Kleiner Schluessel-Wert-Speicher fuer selten wechselnde Fakten
+# (z. B. die quartalsweise angepassten Groessengrenzen von S&P).
+# ---------------------------------------------------------------------------
+_KV_SCHEMA = """
+CREATE TABLE IF NOT EXISTS kv (
+    key     TEXT PRIMARY KEY,
+    fetched REAL NOT NULL,
+    payload TEXT NOT NULL
+);
+"""
+
+
+def kv_get(key: str, ttl_seconds: float):
+    if ttl_seconds <= 0:
+        return None
+    with _conn() as c:
+        c.execute(_KV_SCHEMA)
+        row = c.execute("SELECT payload FROM kv WHERE key = ? AND fetched >= ?",
+                        (key, time.time() - ttl_seconds)).fetchone()
+    if not row:
+        return None
+    try:
+        return json.loads(row[0])
+    except json.JSONDecodeError:
+        return None
+
+
+def kv_set(key: str, value) -> None:
+    with _conn() as c:
+        c.execute(_KV_SCHEMA)
+        c.execute("INSERT OR REPLACE INTO kv VALUES (?,?,?)",
+                  (key, time.time(), json.dumps(value, ensure_ascii=False)))

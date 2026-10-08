@@ -55,6 +55,7 @@ Beide Fehlerklassen sind hier strukturell ausgeschlossen:
 | Quelle | Wofuer | Frische |
 |---|---|---|
 | [press.spglobal.com](https://press.spglobal.com/) | angekuendigte Indexaenderungen mit Stichtag | jeder Lauf |
+| dieselbe Quelle, Meldung "Market Cap Guidelines" | die Groessengrenzen der drei Indizes | taeglich |
 | Wikipedia (Mitgliederlisten + Aenderungshistorie) | aktuelle Mitglieder, GICS-Sektoren, Aufnahmeraten | jeder Lauf |
 | Yahoo Finance (Screener + quoteSummary) | Universum, Marktkapitalisierung, Streubesitz, Quartalsgewinne, Liquiditaet | Kurse jeder Lauf, Fundamentaldaten max. 12 h Cache |
 | nasdaqtrader.com Symboldatei | Rueckfall-Universum, falls Yahoo drosselt | bei Bedarf |
@@ -66,6 +67,9 @@ Alle Quellen sind frei und ohne API-Schluessel nutzbar.
 1. **Harte Kriterien** nach S&P U.S. Indices Methodology (Domizil, Boerse, 12 Monate
    Seasoning, Streubesitz >= 50 %, Liquiditaetsquote >= 0,75, positives GAAP-Ergebnis
    im letzten Quartal und ueber vier Quartale, Groessenband) filtern den Pool.
+   Die Groessengrenzen sind nicht einprogrammiert: S&P passt sie quartalsweise an
+   und meldet das per Pressemitteilung - `sources/thresholds.py` liest die
+   juengste Meldung aus und prueft die Baender auf Luecken, bevor sie gelten.
 2. **Neun Faktoren** gewichten die verbleibenden Kandidaten - darunter der Herkunftsindex,
    dessen Hebel aus der echten Historie gemessen wird (z. B. kommt ein grosser Teil der
    S&P-500-Aufnahmen per Aufstieg aus dem MidCap 400).

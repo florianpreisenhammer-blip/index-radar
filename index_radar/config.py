@@ -7,13 +7,19 @@ darum sind sie hier zentral und datiert hinterlegt.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 # --------------------------------------------------------------------------
-# Marktkapitalisierungs-Baender (Stand der Methodologie: Juli 2026)
-# Quelle: S&P U.S. Indices Methodology; Update der Guidelines per 01.07.2025.
+# Marktkapitalisierungs-Baender.
+#
+# Diese Werte sind nur die Rueckfallebene. Im Normalfall liest
+# sources/thresholds.py sie bei jedem Lauf aus der juengsten S&P-Pressemeldung
+# ("Update to S&P Composite 1500 Market Cap Guidelines") und ueberschreibt sie
+# per apply_thresholds(). S&P prueft die Grenzen zu jedem Quartalsbeginn.
 # --------------------------------------------------------------------------
-THRESHOLDS_ASOF = "2026-07"
+THRESHOLDS_ASOF = "2025-07-01"
+THRESHOLDS_SOURCE = "fest hinterlegter Rueckfallwert"
+THRESHOLDS_URL = ""
 SP500_MIN_CAP = 22.7e9
 SP400_MIN_CAP = 8.0e9
 SP400_MAX_CAP = 22.7e9
@@ -146,6 +152,32 @@ FACTOR_CAPS = {
     "swap_fit": (0.7, 1.6),
     "history": (0.9, 1.25),
 }
+
+def apply_thresholds(th) -> None:
+    """Von S&P gelesene Groessengrenzen fuer diesen Lauf uebernehmen.
+
+    Die Indexdefinitionen sind unveraenderlich (frozen dataclass), deshalb
+    werden sie ersetzt statt veraendert - so gibt es keinen Zwischenzustand
+    mit halb aktualisierten Grenzen.
+    """
+    global SP500_MIN_CAP, SP400_MIN_CAP, SP400_MAX_CAP, SP600_MIN_CAP, SP600_MAX_CAP
+    global THRESHOLDS_ASOF, THRESHOLDS_SOURCE, THRESHOLDS_URL
+
+    SP500_MIN_CAP = th.sp500_min
+    SP400_MIN_CAP, SP400_MAX_CAP = th.sp400_min, th.sp400_max
+    SP600_MIN_CAP, SP600_MAX_CAP = th.sp600_min, th.sp600_max
+    THRESHOLDS_ASOF = th.effective_date
+    THRESHOLDS_SOURCE = th.source
+    THRESHOLDS_URL = th.source_url
+
+    bands = {
+        "sp500": (SP500_MIN_CAP, None),
+        "sp400": (SP400_MIN_CAP, SP400_MAX_CAP),
+        "sp600": (SP600_MIN_CAP, SP600_MAX_CAP),
+    }
+    for key, (lo, hi) in bands.items():
+        INDEX_SPECS[key] = replace(INDEX_SPECS[key], min_cap=lo, max_cap=hi)
+
 
 USER_AGENT = "IndexRadar/1.0 (+personal research tool)"
 HTTP_TIMEOUT = 30
