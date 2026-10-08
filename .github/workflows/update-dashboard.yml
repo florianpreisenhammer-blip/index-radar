@@ -68,20 +68,24 @@ jobs:
             fi
           done
           # Der Export-Schritt hat .vercel/output bereits nach der Build Output API
-          # erzeugt - Vercel liefert die Dateien also unveraendert aus und baut nichts.
+          # erzeugt - Vercel liefert die Dateien unveraendert aus und baut nichts.
           # VERCEL_ORG_ID und VERCEL_PROJECT_ID uebernehmen die Projektzuordnung.
-          # Die CLI gibt auf stdout JSON aus - die Produktionsadresse steht in
-          # deployment.productionUrl.
-          npx --yes vercel@63 deploy --prebuilt --prod --yes > deploy.json
-          url=$(python3 -c "import json; d=json.load(open('deploy.json'))['deployment']; print(d.get('productionUrl') or d['url'])")
-          state=$(python3 -c "import json; print(json.load(open('deploy.json'))['deployment']['readyState'])")
-          echo "Deployed: $url (readyState=$state)"
-          if [ "$state" != "READY" ]; then
-            echo "::error::Deployment nicht bereit: $state"
+          if ! npx --yes vercel@63 deploy --prebuilt --prod --yes \
+               > vercel-out.txt 2> vercel-err.txt; then
+            echo "::error::Vercel-Deploy fehlgeschlagen"
+            cat vercel-err.txt
             exit 1
           fi
+          cat vercel-err.txt
+          # Die CLI schreibt im Terminal JSON, im CI nur Fortschritt auf stderr.
+          # Die letzte genannte *.vercel.app-Adresse ist in beiden Faellen die
+          # Produktionsadresse (JSON: "Production URL", CI: "Aliased").
+          url=$(cat vercel-out.txt vercel-err.txt | tr -d '\r' \
+                | grep -oE 'https://[A-Za-z0-9._-]+\.vercel\.app' | tail -1)
+          echo "Deployed: ${url:-Adresse nicht aus der Ausgabe lesbar}"
+          stand=$(python3 -c "import json; print(json.load(open('dist/data.json'))['generated_at'])")
           {
             echo "### Dashboard aktualisiert"
-            echo "$url"
-            python3 -c "import json; d=json.load(open('dist/data.json')); print('Datenstand:', d['generated_at'])"
+            [ -n "$url" ] && echo "$url"
+            echo "Datenstand: $stand"
           } >> "$GITHUB_STEP_SUMMARY"
