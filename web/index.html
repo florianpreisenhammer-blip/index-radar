@@ -180,9 +180,15 @@ const filters = {q:'', onlyEligible:true, origin:'alle'};
 //   live    - der lokale Python-Server liefert /api/* und kann neu rechnen
 //   statisch- ein exportierter Schnappschuss (z. B. auf Vercel) liest data.json
 async function detectMode(){
+  // Eingebettete Daten = statischer Export, fertig. Kein Netzwerkzugriff noetig.
+  if(document.getElementById('snapshot')) return true;
   try{
     const r = await fetch('/api/status', {cache:'no-store'});
     if(!r.ok) throw new Error('kein Server');
+    const s = await r.json();
+    // Ein Static-Host, der auf unbekannte Pfade mit 200 antwortet, darf uns
+    // nicht in den Live-Modus locken - die Antwort muss wirklich von uns sein.
+    if(typeof s.running !== 'boolean') throw new Error('fremde Antwort');
     return false;
   }catch(e){ return true; }
 }
@@ -206,17 +212,35 @@ async function poll(){
 }
 
 async function loadData(){
+  const embedded = document.getElementById('snapshot');
+  if(embedded){
+    DATA = JSON.parse(embedded.textContent);
+    render();
+    return;
+  }
   const r = await fetch(STATIC ? './data.json' : '/api/data', {cache:'no-store'});
-  if(!r.ok) return;
+  if(!r.ok) throw new Error('HTTP ' + r.status + ' beim Laden der Daten');
   DATA = await r.json();
   render();
+}
+
+function showLoadError(err){
+  const box = document.getElementById('error');
+  box.hidden = false;
+  box.innerHTML = 'Die Daten konnten nicht geladen werden: '
+    + esc(err && err.message ? err.message : String(err))
+    + '.<br>Bei einem statischen Export liegt das meist an einem Inhaltsblocker '
+    + 'oder einer Netzwerksperre; <a href="./data.json">data.json direkt oeffnen</a> '
+    + 'zeigt, ob die Datei erreichbar ist.';
+  document.getElementById('status').textContent = 'Laden fehlgeschlagen';
+  document.getElementById('dot').style.background = 'var(--bad)';
 }
 
 function applyStaticMode(){
   document.querySelectorAll('.actions button').forEach(b => b.remove());
   document.getElementById('dot').classList.remove('busy');
   const s = document.getElementById('status');
-  s.textContent = DATA ? 'Datenstand ' + fmtTime(DATA.generated_at) : 'keine Daten';
+  if(DATA) s.textContent = 'Datenstand ' + fmtTime(DATA.generated_at);
   const sub = document.querySelector('header.top .sub');
   sub.innerHTML = 'Wahrscheinlichkeiten fuer die Aufnahme in S&amp;P 500, S&amp;P 100, '
     + 'S&amp;P MidCap 400 und S&amp;P SmallCap 600.<br>'
@@ -518,7 +542,11 @@ document.getElementById('reloadFresh').onclick = async () => {
 };
 (async () => {
   STATIC = await detectMode();
-  await loadData();
+  try{
+    await loadData();
+  }catch(err){
+    showLoadError(err);
+  }
   if(STATIC) applyStaticMode(); else poll();
 })();
 </script>

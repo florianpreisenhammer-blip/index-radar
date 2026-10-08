@@ -91,9 +91,28 @@ def build(snapshot: dict, dest: Path = DEFAULT_DEST, make_zip: bool = True) -> P
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
 
-    shutil.copyfile(WEB_DIR / "index.html", dest / "index.html")
-    (dest / "data.json").write_text(
-        json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    payload = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
+
+    # Die Daten werden in die Seite eingebettet, statt sie nachzuladen. Das macht
+    # den Export zu einer einzigen, in sich geschlossenen Datei: keine zweite
+    # Anfrage, die ein Inhaltsblocker abfangen kann, und kein Zustand, in dem
+    # eine frische Seite alte Daten aus dem Cache bekommt.
+    # "<" wird escaped, damit ein "</script>" in den Daten das Skript nicht beendet.
+    page = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+    embed = ('<script id="snapshot" type="application/json">'
+             + payload.replace("<", "\\u003c") + "</script>")
+    # Wichtig: vor das Hauptskript, nicht ans Dateiende - sonst existiert das
+    # Element noch nicht, wenn die Seite startet.
+    marker = "<body>"
+    if marker in page:
+        page = page.replace(marker, marker + "\n" + embed, 1)
+    else:
+        page = embed + page
+    (dest / "index.html").write_text(page, encoding="utf-8")
+
+    # data.json bleibt zusaetzlich liegen - praktisch, um die Zahlen direkt
+    # abzurufen, ohne die Seite zu parsen.
+    (dest / "data.json").write_text(payload, encoding="utf-8")
     (dest / "vercel.json").write_text(json.dumps(VERCEL_JSON, indent=2), encoding="utf-8")
 
     stamp = snapshot.get("generated_at", datetime.now(timezone.utc).isoformat())
