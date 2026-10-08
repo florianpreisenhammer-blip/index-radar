@@ -1,8 +1,8 @@
 # Automatische Aktualisierung einrichten
 
-Ziel: Die Netlify-Seite rechnet sich zweimal taeglich selbst neu, ohne dass du
-etwas hochlaedst. Dafuer laeuft die Python-Pipeline in GitHub Actions und schiebt
-das Ergebnis per Netlify-API.
+Ziel: Die veroeffentlichte Seite rechnet sich zweimal taeglich selbst neu, ohne
+dass du etwas hochlaedst. Dafuer laeuft die Python-Pipeline in GitHub Actions und
+schiebt das fertige Ergebnis per Vercel-CLI nach Vercel.
 
 Einmalig, danach laeuft es von allein. Dauer: ungefaehr 10 Minuten.
 
@@ -44,36 +44,41 @@ git remote add origin https://github.com/<dein-benutzername>/index-radar.git
 git push -u origin main
 ```
 
-## 2. Netlify-Seite anlegen
+## 2. Vercel-Projekt anlegen
 
-Die Seite muss einmal existieren, damit es eine Site-ID gibt:
+```bash
+npm i -g vercel
+vercel login
+cd ~/Trends/index_radar
+vercel link --yes --project index-radar --scope <dein-team>
+```
 
-1. [app.netlify.com/drop](https://app.netlify.com/drop) oeffnen.
-2. Den Ordner `dist` hineinziehen (`./run.sh --export` erzeugt ihn).
-3. Oben rechts ueber "Site configuration" einen sprechenden Namen vergeben.
+`vercel link` legt `.vercel/project.json` an - darin stehen `orgId` und
+`projectId`, die der Actions-Job braucht.
 
-**Site-ID holen:** Site configuration -> General -> Site information ->
-*Site ID* (sieht aus wie `a1b2c3d4-...`).
-
-**Zugriffstoken holen:** oben rechts auf das Nutzerbild ->
-User settings -> Applications -> Personal access tokens ->
-"New access token". Den Wert sofort kopieren, er wird nur einmal angezeigt.
+**Token holen:** [vercel.com/account/settings/tokens](https://vercel.com/account/settings/tokens)
+-> "Create Token", Geltungsbereich auf das Team setzen. Der Wert wird nur
+einmal angezeigt.
 
 ## 3. Secrets im Repository hinterlegen
 
-Auf GitHub: Repository -> Settings -> Secrets and variables -> Actions ->
-"New repository secret". Zwei Stueck:
+```bash
+gh secret set VERCEL_TOKEN                      # fragt den Wert interaktiv ab
+gh secret set VERCEL_ORG_ID --body "<orgId>"
+gh secret set VERCEL_PROJECT_ID --body "<projectId>"
+```
 
 | Name | Wert |
 |---|---|
-| `NETLIFY_AUTH_TOKEN` | das Personal Access Token aus Schritt 2 |
-| `NETLIFY_SITE_ID` | die Site-ID aus Schritt 2 |
+| `VERCEL_TOKEN` | das Token aus Schritt 2 |
+| `VERCEL_ORG_ID` | `orgId` aus `.vercel/project.json` |
+| `VERCEL_PROJECT_ID` | `projectId` aus `.vercel/project.json` |
 
 ## 4. Erstmals ausloesen
 
 Repository -> Actions -> "Dashboard aktualisieren und deployen" ->
 "Run workflow". Der Lauf dauert zwei bis drei Minuten. In der
-Zusammenfassung stehen danach die Netlify-Adresse und der Datenstand.
+Zusammenfassung stehen danach die Vercel-Adresse und der Datenstand.
 
 Ab dann laeuft er automatisch:
 
@@ -103,4 +108,6 @@ gebaute Export haengt als Artefakt am Lauf, auch wenn das Deployen scheitert.
 
 Privates Repository: 2.000 Actions-Minuten pro Monat inklusive. Dieser Job
 braucht ungefaehr 3 Minuten pro Lauf, also rund 150 Minuten im Monat.
-Netlify: im kostenlosen Tarif enthalten (reines Ausliefern, kein Build).
+Vercel: im Hobby-Tarif enthalten. Da `.vercel/output` fertig angeliefert wird
+(Build Output API), laeuft auf Vercel kein Build - es werden nur zwei statische
+Dateien ausgeliefert.

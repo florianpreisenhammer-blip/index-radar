@@ -1,6 +1,6 @@
-"""Statischen Export fuer Netlify (oder jeden anderen Static-Host) bauen.
+"""Statischen Export fuer Vercel (oder jeden anderen Static-Host) bauen.
 
-Netlify fuehrt kein Python aus. Exportiert wird deshalb ein eingefrorener
+Ein Static-Host fuehrt kein Python aus. Exportiert wird deshalb ein eingefrorener
 Schnappschuss: dieselbe Seite, aber sie liest `data.json` statt der lokalen
 API und blendet die Neuberechnen-Schaltflaechen aus. Das Datum des
 Schnappschusses steht gut sichtbar im Kopf der Seite.
@@ -17,19 +17,26 @@ from .util import log
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 DEFAULT_DEST = Path(__file__).resolve().parent.parent / "dist"
 
-HEADERS = """\
-/data.json
-  Cache-Control: public, max-age=0, must-revalidate
-/index.html
-  Cache-Control: public, max-age=0, must-revalidate
-"""
+# Caching: die Seite selbst und die Daten duerfen nie aus einem alten Cache
+# kommen - sonst sieht man nach einem Deploy tagelang den vorherigen Stand.
+NO_CACHE = "public, max-age=0, must-revalidate"
 
-NETLIFY_TOML = """\
-# Statischer Export des Index-Radar - es wird nichts gebaut, nur ausgeliefert.
-[build]
-  publish = "."
-  command = ""
-"""
+VERCEL_JSON = {
+    "cleanUrls": True,
+    "headers": [
+        {"source": "/(index.html)?", "headers": [{"key": "Cache-Control", "value": NO_CACHE}]},
+        {"source": "/data.json", "headers": [{"key": "Cache-Control", "value": NO_CACHE}]},
+    ],
+}
+
+# Vercel Build Output API v3: fertige Dateien ohne Build-Schritt ausliefern.
+BUILD_OUTPUT_CONFIG = {
+    "version": 3,
+    "routes": [
+        {"src": "/data.json", "headers": {"cache-control": NO_CACHE}, "continue": True},
+        {"src": "/(index.html)?", "headers": {"cache-control": NO_CACHE}, "continue": True},
+    ],
+}
 
 
 def _readme(generated_at: str) -> str:
@@ -38,30 +45,44 @@ def _readme(generated_at: str) -> str:
 
 Datenstand: {generated_at}
 
-Hochladen bei Netlify
----------------------
-1. https://app.netlify.com/drop oeffnen (oder im Team "Add new project" ->
-   "Deploy manually").
-2. Diesen Ordner komplett hineinziehen - nicht die einzelnen Dateien.
-3. Fertig. Die Seite ist sofort unter der vergebenen *.netlify.app-Adresse erreichbar.
-
-Aktualisieren
--------------
-Der Export ist eingefroren. Fuer neue Zahlen lokal
+Veroeffentlichen
+----------------
+Normalfall: der GitHub-Actions-Job rechnet zweimal taeglich und deployt selbst.
+Von Hand geht es mit der Vercel-CLI aus dem Projektverzeichnis:
 
     ./run.sh --export
+    vercel deploy --prebuilt --prod
 
-ausfuehren und den Ordner erneut hochziehen (Netlify: "Deploys" -> Drag & Drop).
-Die laufende Neuberechnung im Browser gibt es nur lokal mit ./run.sh, weil
-Netlify kein Python ausfuehrt.
+Der Export ist ein eingefrorener Schnappschuss; die laufende Neuberechnung im
+Browser gibt es nur lokal mit ./run.sh, weil ein Static-Host kein Python ausfuehrt.
 
 Inhalt
 ------
 index.html     Dashboard (erkennt selbst, dass kein Server da ist)
 data.json      Schnappschuss der Berechnung
-_headers       verhindert, dass Netlify veraltete Daten cached
-netlify.toml   sagt Netlify, dass nichts gebaut werden muss
+vercel.json    Caching-Regeln, damit nach einem Deploy nicht der alte Stand steht
 """
+
+
+def build_vercel_output(source: Path, dest: Path | None = None) -> Path:
+    """Fertigen Export in die Vercel Build Output API uebersetzen.
+
+    Damit laeuft auf Vercel kein Build - die Dateien werden unveraendert
+    ausgeliefert. Kein Framework-Raten, keine Python-Laufzeit noetig.
+    """
+    dest = Path(dest or (Path.cwd() / ".vercel" / "output"))
+    if dest.exists():
+        shutil.rmtree(dest)
+    static = dest / "static"
+    static.mkdir(parents=True)
+
+    for item in Path(source).iterdir():
+        if item.is_file() and item.name not in ("vercel.json", "README.txt"):
+            shutil.copyfile(item, static / item.name)
+    (dest / "config.json").write_text(json.dumps(BUILD_OUTPUT_CONFIG, indent=2),
+                                      encoding="utf-8")
+    log.info("Vercel-Build-Output erzeugt: %s", dest)
+    return dest
 
 
 def build(snapshot: dict, dest: Path = DEFAULT_DEST, make_zip: bool = True) -> Path:
@@ -73,8 +94,7 @@ def build(snapshot: dict, dest: Path = DEFAULT_DEST, make_zip: bool = True) -> P
     shutil.copyfile(WEB_DIR / "index.html", dest / "index.html")
     (dest / "data.json").write_text(
         json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    (dest / "_headers").write_text(HEADERS, encoding="utf-8")
-    (dest / "netlify.toml").write_text(NETLIFY_TOML, encoding="utf-8")
+    (dest / "vercel.json").write_text(json.dumps(VERCEL_JSON, indent=2), encoding="utf-8")
 
     stamp = snapshot.get("generated_at", datetime.now(timezone.utc).isoformat())
     (dest / "README.txt").write_text(_readme(stamp), encoding="utf-8")

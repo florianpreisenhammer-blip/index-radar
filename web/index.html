@@ -178,7 +178,7 @@ const filters = {q:'', onlyEligible:true, origin:'alle'};
 
 // Die Seite laeuft in zwei Betriebsarten:
 //   live    - der lokale Python-Server liefert /api/* und kann neu rechnen
-//   statisch- ein exportierter Schnappschuss (z. B. auf Netlify) liest data.json
+//   statisch- ein exportierter Schnappschuss (z. B. auf Vercel) liest data.json
 async function detectMode(){
   try{
     const r = await fetch('/api/status', {cache:'no-store'});

@@ -1,6 +1,6 @@
 name: Dashboard aktualisieren und deployen
 
-# Rechnet die Prognose neu und schiebt das Ergebnis zu Netlify.
+# Rechnet die Prognose neu und schiebt das Ergebnis zu Vercel.
 # Zweimal taeglich: morgens (faengt Meldungen der Nacht) und am spaeten Abend
 # (S&P veroeffentlicht Indexaenderungen in der Regel nach US-Boersenschluss).
 on:
@@ -55,33 +55,33 @@ jobs:
           path: dist/
           retention-days: 14
 
-      - name: Zu Netlify deployen
+      - name: Zu Vercel deployen
         env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          if [ -z "$NETLIFY_AUTH_TOKEN" ] || [ -z "$NETLIFY_SITE_ID" ]; then
-            echo "::error::Secrets NETLIFY_AUTH_TOKEN und/oder NETLIFY_SITE_ID fehlen."
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret $name fehlt."
+              exit 1
+            fi
+          done
+          # Der Export-Schritt hat .vercel/output bereits nach der Build Output API
+          # erzeugt - Vercel liefert die Dateien also unveraendert aus und baut nichts.
+          # VERCEL_ORG_ID und VERCEL_PROJECT_ID uebernehmen die Projektzuordnung.
+          # Die CLI gibt auf stdout JSON aus - die Produktionsadresse steht in
+          # deployment.productionUrl.
+          npx --yes vercel@63 deploy --prebuilt --prod --yes > deploy.json
+          url=$(python3 -c "import json; d=json.load(open('deploy.json'))['deployment']; print(d.get('productionUrl') or d['url'])")
+          state=$(python3 -c "import json; print(json.load(open('deploy.json'))['deployment']['readyState'])")
+          echo "Deployed: $url (readyState=$state)"
+          if [ "$state" != "READY" ]; then
+            echo "::error::Deployment nicht bereit: $state"
             exit 1
           fi
-          # Netlify nimmt ein ZIP direkt entgegen - kein Node, keine CLI noetig.
-          # Kein --fail: der Statuscode wird unten selbst geprueft, damit die
-          # Fehlermeldung von Netlify im Log landet statt nur ein Exit-Code.
-          response=$(curl --silent --show-error \
-            --write-out "\n%{http_code}" \
-            -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
-            -H "Content-Type: application/zip" \
-            --data-binary "@dist.zip" \
-            "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys")
-          code=$(printf '%s' "$response" | tail -n1)
-          body=$(printf '%s' "$response" | sed '$d')
-          echo "HTTP $code"
-          if [ "$code" != "200" ] && [ "$code" != "201" ]; then
-            echo "::error::Netlify-Deploy fehlgeschlagen: $body"
-            exit 1
-          fi
-          url=$(printf '%s' "$body" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ssl_url') or d.get('url',''))")
-          echo "Deployed: $url"
-          echo "### Dashboard aktualisiert" >> "$GITHUB_STEP_SUMMARY"
-          echo "$url" >> "$GITHUB_STEP_SUMMARY"
-          python3 -c "import json; d=json.load(open('dist/data.json')); print('Datenstand:', d['generated_at'])" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Dashboard aktualisiert"
+            echo "$url"
+            python3 -c "import json; d=json.load(open('dist/data.json')); print('Datenstand:', d['generated_at'])"
+          } >> "$GITHUB_STEP_SUMMARY"

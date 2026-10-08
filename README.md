@@ -12,27 +12,27 @@ die veralten koennte.
 ./run.sh --fresh      # ignoriert auch den Fundamentaldaten-Cache
 ```
 
-## Statischer Export (Netlify & Co.)
+## Statischer Export und Veroeffentlichung
 
 ```bash
-./run.sh --export            # rechnet neu und baut ./dist + ./dist.zip
+./run.sh --export            # rechnet neu, baut ./dist, ./dist.zip und .vercel/output
+vercel deploy --prebuilt --prod
 ```
 
-`dist/` enthaelt `index.html`, `data.json`, `_headers` und `netlify.toml`.
-Bei [app.netlify.com/drop](https://app.netlify.com/drop) den Ordner (oder das ZIP)
-hineinziehen - fertig. Die Seite erkennt selbst, dass kein Python-Server erreichbar
-ist, liest dann `data.json` und blendet die Neuberechnen-Schaltflaechen aus.
+Die Seite erkennt selbst, dass kein Python-Server erreichbar ist, liest dann
+`data.json` und blendet die Neuberechnen-Schaltflaechen aus. `dist.zip` eignet
+sich fuer jeden beliebigen Static-Host per Drag & Drop.
 
-Wichtig: **Netlify fuehrt kein Python aus.** Ein Upload ist ein eingefrorener
-Schnappschuss mit sichtbarem Stichtag. Die laufende Neuberechnung beim Oeffnen
-gibt es nur lokal ueber `./run.sh`.
+Wichtig: **ein Static-Host fuehrt kein Python aus.** Veroeffentlicht wird ein
+eingefrorener Schnappschuss mit sichtbarem Stichtag; die laufende Neuberechnung
+beim Oeffnen gibt es nur lokal ueber `./run.sh`.
 
 Damit die Online-Version trotzdem aktuell bleibt, liegt in
 `.github/workflows/update-dashboard.yml` ein GitHub-Actions-Job bereit, der die
-Pipeline zweimal taeglich rechnet und das Ergebnis per Netlify-API deployt.
-Einrichtung in [SETUP.md](SETUP.md). Vor dem Deploy prueft
-`index_radar/validate.py` den Snapshot auf Plausibilitaet - bei gedrosselten
-Datenquellen bricht der Job ab, statt eine halbleere Seite zu veroeffentlichen.
+Pipeline zweimal taeglich rechnet und nach Vercel deployt. Einrichtung in
+[SETUP.md](SETUP.md). Vor dem Deploy prueft `index_radar/validate.py` den
+Snapshot auf Plausibilitaet - bei gedrosselten Datenquellen bricht der Job ab,
+statt eine halbleere Seite zu veroeffentlichen.
 
 ## Was dieses Dashboard anders macht
 

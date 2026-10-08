@@ -42,7 +42,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--top", type=int, default=0, help="Top-N je Index im Terminal zeigen")
     p.add_argument("--fresh", action="store_true", help="Fundamentaldaten-Cache leeren")
     p.add_argument("--export", nargs="?", const=str(export_site.DEFAULT_DEST), metavar="ORDNER",
-                   help="statischen Schnappschuss fuer Netlify bauen (Standard: ./dist)")
+                   help="statischen Schnappschuss zum Veroeffentlichen bauen (Standard: ./dist)")
     p.add_argument("--force", action="store_true",
                    help="Export auch bauen, wenn die Plausibilitaetspruefung anschlaegt")
     p.add_argument("--horizon", type=int, default=HORIZON_DAYS, help="Prognosehorizont in Tagen")
@@ -67,10 +67,11 @@ def main(argv: list[str] | None = None) -> int:
             print("  (--force gesetzt, Export trotzdem gebaut)", file=sys.stderr)
 
         dest = export_site.build(snap, Path(args.export))
+        out = export_site.build_vercel_output(dest)
         print(f"\nStatischer Export fertig: {dest}")
-        print(f"ZIP zum Hochladen:        {dest}.zip")
-        print("\nBei Netlify: https://app.netlify.com/drop oeffnen und den Ordner "
-              "hineinziehen\n(oder im Team 'Add new project' -> 'Deploy manually').")
+        print(f"ZIP (fuer Drag & Drop):   {dest}.zip")
+        print(f"Vercel-Build-Output:      {out}")
+        print("\nVeroeffentlichen:  vercel deploy --prebuilt --prod")
         if args.top:
             print_top(snap, args.top)
         return 0
