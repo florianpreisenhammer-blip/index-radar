@@ -91,7 +91,7 @@ class Fundamentals:
     @property
     def net_income_ttm(self) -> float | None:
         vals = [v for v in self.quarterly_net_income[:4] if v is not None]
-        return sum(vals) if len(vals) >= 4 else (sum(vals) if vals else None)
+        return sum(vals) if len(vals) == 4 else None
 
     @property
     def net_income_latest(self) -> float | None:

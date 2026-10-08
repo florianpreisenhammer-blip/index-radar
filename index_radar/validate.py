@@ -13,6 +13,15 @@ MIN_MEMBER_RATIO = 0.9          # je Index mind. 90 % der erwarteten Mitglieder
 MIN_ELIGIBLE = {"sp500": 20, "sp100": 50, "sp400": 40, "sp600": 60}
 MAX_FAILED_RATIO = 0.25         # Anteil Titel ohne Fundamentaldaten
 
+# Selbstkontrolle: score_index() bewertet jede bereits von S&P angekuendigte
+# Aufnahme rueckwirkend (Schattenrang), bevor die Ankuendigung bekannt war.
+# Genau diese Pruefung haette die beiden Fehler verhindert, die den Anstoss
+# fuer dieses Projekt gaben (Bloom Energy als Kandidat trotz Ankuendigung,
+# Illumina nie als Kandidat sichtbar) - deshalb wird sie hier zum Deploy-Gate.
+MIN_VALIDATION_SAMPLE = 3       # erst ab so vielen pruefbaren Ankuendigungen werten
+MAX_MISS_RATIO = 0.3            # Anteil angekuendigter Titel, die gar nicht als Kandidat auftauchten
+MIN_TOP25_HIT_RATE = 0.4        # Anteil der geprueften Ankuendigungen, die in den Top 25 lagen
+
 
 def check(snapshot: dict) -> list[str]:
     problems: list[str] = []
@@ -41,6 +50,24 @@ def check(snapshot: dict) -> list[str]:
             problems.append(f"{spec.label}: nur {idx['eligible_count']} qualifizierte Kandidaten")
         if idx["calibration"]["adds_per_year"] <= 0:
             problems.append(f"{spec.label}: keine Aufnahmerate ermittelt")
+
+        validation = idx.get("validation") or {}
+        checked = validation.get("checked", 0)
+        missed = len(validation.get("missed", []))
+        total_announced = checked + missed
+        if total_announced >= MIN_VALIDATION_SAMPLE:
+            miss_ratio = missed / total_announced
+            if miss_ratio > MAX_MISS_RATIO:
+                problems.append(
+                    f"{spec.label}: {missed} von {total_announced} angekuendigten Aufnahmen "
+                    f"tauchten im Modell gar nicht als Kandidat auf ({miss_ratio:.0%}) - "
+                    f"Eligibility-Pruefung vermutlich fehlerhaft")
+            elif checked and validation.get("in_top25", 0) / checked < MIN_TOP25_HIT_RATE:
+                hit = validation["in_top25"] / checked
+                problems.append(
+                    f"{spec.label}: nur {validation['in_top25']} von {checked} angekuendigten "
+                    f"Aufnahmen lagen in den Top 25 des Modells ({hit:.0%}) - "
+                    f"Scoring vermutlich verzerrt")
 
     th = snapshot.get("thresholds") or {}
     bands = [th.get("sp600_min"), th.get("sp600_max"), th.get("sp400_min"),
