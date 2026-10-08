@@ -89,3 +89,7 @@ jobs:
             [ -n "$url" ] && echo "$url"
             echo "Datenstand: $stand"
           } >> "$GITHUB_STEP_SUMMARY"
+          # Hinweise der Selbstkontrolle sichtbar machen - sie blockieren den
+          # Deploy nicht, sollen aber nicht unbemerkt bleiben.
+          python3 -c "import json; [print('::warning::' + w) for w in json.load(open('dist/data.json')).get('validation_warnings', [])]"
+          python3 -c "import json; ws=json.load(open('dist/data.json')).get('validation_warnings', []); print('\n'.join(['', '**Hinweise der Selbstkontrolle:**'] + ['- ' + w for w in ws]) if ws else '')" >> "$GITHUB_STEP_SUMMARY"

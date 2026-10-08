@@ -57,15 +57,21 @@ def main(argv: list[str] | None = None) -> int:
         snap = pipeline.run(horizon_days=args.horizon, fresh=args.fresh)
         pipeline.write(snap)
 
-        problems = validate.check(snap)
-        if problems:
+        report = validate.check(snap)
+        # Hinweise wandern in den Snapshot, damit sie in der Job-Zusammenfassung
+        # auftauchen und nicht nur im Log verschwinden.
+        snap["validation_warnings"] = report.warnings
+        for w in report.warnings:
+            print(f"Hinweis: {w}", file=sys.stderr)
+        if report.problems:
             print("\nSnapshot nicht plausibel - es wird nichts exportiert:", file=sys.stderr)
-            for pr in problems:
+            for pr in report.problems:
                 print(f"  - {pr}", file=sys.stderr)
             if not args.force:
                 return 2
             print("  (--force gesetzt, Export trotzdem gebaut)", file=sys.stderr)
 
+        pipeline.write(snap)
         dest = export_site.build(snap, Path(args.export))
         out = export_site.build_vercel_output(dest)
         print(f"\nStatischer Export fertig: {dest}")
